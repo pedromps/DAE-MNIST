@@ -140,20 +140,6 @@ samp = samp.numpy()
 
 plot_latent(x_samp, y, latent_dim)
 plot_outputs(x_train, samp, 3)
-    
-# time to commpare a few images
-first_image = np.array(samp[10], dtype='float')
-pixels = first_image.reshape((28, 28))
-plt.figure()
-plt.imshow(pixels, cmap='gray')
-plt.show()
-
-test_image = np.array(x_test[10], dtype='float')
-pixels = test_image.reshape((28, 28))
-plt.figure()
-plt.imshow(pixels, cmap='gray')
-plt.show()
-
 
 # statistics: histogram and normal distribution to better see the latent space and how it follows a normal distr.
 input_x = x_sampled
