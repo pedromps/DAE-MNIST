@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -10,22 +8,9 @@ from scipy.stats import norm
 from keras.datasets import mnist
 from keras import backend as K
 from keras.losses import binary_crossentropy
-
-
-
-
-
-class Sampling(layers.Layer):
-    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
-    def call(self, inputs):
-        z_mean, z_log_var = inputs
-        batch = 1
-        dim = z_mean.shape[2]
-        epsilon = tf.keras.backend.random_normal(shape = (batch, dim), mean = 0, stddev = 1)
-        return z_mean + tf.exp(z_log_var*0.5)*epsilon
     
     
-# sampling class based on https://keras.io/examples/generative/vae/
+# VAE class based on https://keras.io/examples/generative/vae/
 class VAE(keras.Model):
     def __init__(self, encoder, decoder, beta, **kwargs):
         super(VAE, self).__init__(**kwargs)
@@ -39,8 +24,6 @@ class VAE(keras.Model):
         with tf.GradientTape() as tape:
             z_mean, z_log_var, z = encoder(data)
             reconstruction = decoder(z)
-            # data >= 0 because the data with negative values (-1) is masked 
-            # RMSE vs MAE?
             reconstruction_loss = binary_crossentropy(K.flatten(data), K.flatten(reconstruction)) * img_width * img_height
             kl_loss = 1 + z_log_var - K.square(z_mean) - K.exp(z_log_var) 
             kl_loss = K.sum(kl_loss, axis = -1)
@@ -81,7 +64,7 @@ def compute_latent(x):
     return mu + K.exp(sigma/2)*eps
 
 
-# layers for longitudinal data based on https://github.com/cran2367/understanding-lstm-autoencoder 
+# layers for both the encoder and the decoder based on https://becominghuman.ai/using-variational-autoencoder-vae-to-generate-new-images-14328877e88d
 encoder_inputs = keras.Input(shape = (img_height, img_width, num_channels))
 x = layers.Conv2D(filters = 8, kernel_size = 3, strides = 2, padding = 'same', activation = 'relu')(encoder_inputs)
 x = layers.Conv2D(filters = 16, kernel_size = 3, strides = 2,  padding = 'same', activation = 'relu')(encoder_inputs)
@@ -92,7 +75,6 @@ z = layers.Lambda(compute_latent, output_shape=(latent_dim,))([mu, sigma])
 conv_shape = K.int_shape(x) # the shape is here
 encoder = keras.Model(encoder_inputs, [mu, sigma, z], name = "encoder")
 encoder.summary()
-
 
 latent_inputs = keras.Input(shape = (latent_dim, ))
 x = layers.Dense(conv_shape[1]*conv_shape[2]*conv_shape[3], activation = 'relu')(latent_inputs)
@@ -105,7 +87,7 @@ decoder.summary()
 
 # beta value is input here
 vae = VAE(encoder, decoder, beta = 0.1)
-vae.compile(optimizer=keras.optimizers.Adam(learning_rate = 0.001))
+vae.compile(optimizer = keras.optimizers.Adam(learning_rate = 0.001))
 vae.fit(x_train, epochs = 20, batch_size = 128, verbose = 1)
 
 
@@ -116,8 +98,8 @@ plt.legend()
 plt.grid()
 plt.show()
 
-# imputing data
-x_samp = np.copy(x_train)
+# generating data
+x_samp = np.copy(x_test)
 x_aux = np.copy(x_samp)
 # alternatively you can include this step. missing data can be either nan or 0
 # x_samp[NanIndex] = 0
@@ -126,16 +108,31 @@ x_m, x_l, x_samp = encoder(x_samp)
 x_m = x_m.numpy()
 x_l = x_l.numpy()
 x_sampled = x_samp.numpy()
-samp = decoder(x_samp)
 # samp contains an example of fully generated data
+samp = decoder(x_samp)
 samp = samp.numpy()
 
-
+# latent space plot
 plt.figure(figsize=(14,12))
 plt.scatter(x_samp[:,0], x_samp[:,1], s=2, c=y_train, cmap='hsv')
 plt.colorbar()
 plt.grid()
 plt.show()
+
+
+# time to commpare a few images
+first_image = np.array(samp[10], dtype='float')
+pixels = first_image.reshape((28, 28))
+plt.figure()
+plt.imshow(pixels, cmap='gray')
+plt.show()
+
+test_image = np.array(x_test[10], dtype='float')
+pixels = test_image.reshape((28, 28))
+plt.figure()
+plt.imshow(pixels, cmap='gray')
+plt.show()
+
 
 # statistics: histogram and normal distribution to better see the latent space and how it follows a normal distr.
 input_x = x_sampled
