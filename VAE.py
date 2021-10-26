@@ -47,13 +47,13 @@ class VAE(keras.Model):
             kl_loss *= -0.5
             
             # beta to turn this into a beta-VAE
-            total_loss = reconstruction_loss + self.beta * kl_loss
+            total_loss = K.mean(reconstruction_loss + self.beta * kl_loss)
         grads = tape.gradient(total_loss, self.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
         return {
             "loss": total_loss,
             "reconstruction_loss": reconstruction_loss,
-            "kl_loss": kl_loss,
+            "kl_loss": K.mean(kl_loss),
         }
     
 
@@ -104,9 +104,9 @@ decoder = keras.Model(latent_inputs, x_, name = "decoder")
 decoder.summary()
 
 # beta value is input here
-vae = VAE(encoder, decoder, beta = 1)
+vae = VAE(encoder, decoder, beta = 0.1)
 vae.compile(optimizer=keras.optimizers.Adam(learning_rate = 0.001))
-vae.fit(x_train, epochs = 20, batch_size = 32, verbose = 1)
+vae.fit(x_train, epochs = 20, batch_size = 128, verbose = 1)
 
 
 plt.figure(figsize = (18.64, 9.48))
@@ -131,6 +131,12 @@ samp = decoder(x_samp)
 samp = samp.numpy()
 
 
+plt.figure(figsize=(14,12))
+plt.scatter(x_samp[:,0], x_samp[:,1], s=2, c=y_train, cmap='hsv')
+plt.colorbar()
+plt.grid()
+plt.show()
+
 # statistics: histogram and normal distribution to better see the latent space and how it follows a normal distr.
 input_x = x_sampled
 mean_val = np.mean(input_x)
@@ -138,9 +144,8 @@ stddev = np.std(input_x)
 domain = np.linspace(np.min(input_x), np.max(input_x))
 plt.figure(figsize = (18.64, 9.48))
 plt.plot(domain, norm.pdf(domain, mean_val, stddev))
-plt.hist(np.reshape(x_sampled, (input_x.shape[0]*input_x.shape[1], input_x.shape[2])), edgecolor = 'black', density = True)
 plt.title("Distribution of latent space points with $\mu$ = {:.2f} and $\sigma$ = {:.2f}".format(mean_val, stddev))
 plt.xlabel("Value")
-plt.ylabel("Frequency of each result")
+plt.ylabel("PDF")
 plt.grid()
 plt.show()
