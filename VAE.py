@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 import tensorflow as tf
+from random import random
 from tensorflow import keras
 from tensorflow.keras import layers
 from matplotlib import pyplot as plt
@@ -9,7 +10,31 @@ from keras.datasets import mnist
 from keras import backend as K
 from keras.losses import binary_crossentropy
     
+def plot_latent(x, y, latent_dim):
+    if latent_dim != 2:
+        return
+    else:
+        # latent space plot
+        plt.figure(figsize=(14,12))
+        plt.scatter(x[:,0], x[:,1], s=2, c=y, cmap='hsv')
+        plt.colorbar()
+        plt.grid()
+        plt.show()
     
+def plot_outputs(orig, samples, pictures):   
+    fig, axs = plt.subplots(pictures, 2)
+    for i in range(pictures):
+        rng = int(samples.shape[0]*random()) # random number
+    
+        rec_image = np.array(orig[rng], dtype='float')
+        rec_pixels = rec_image.reshape((28, 28))
+        axs[i,0].imshow(rec_pixels, cmap='gray')
+        
+        orig_image = np.array(samples[rng], dtype='float')
+        orig_pixels = orig_image.reshape((28, 28))
+        axs[i,1].imshow(orig_pixels, cmap='gray')
+        
+        
 # VAE class based on https://keras.io/examples/generative/vae/
 class VAE(keras.Model):
     def __init__(self, encoder, decoder, beta, **kwargs):
@@ -39,29 +64,29 @@ class VAE(keras.Model):
             "kl_loss": K.mean(kl_loss),
         }
     
-
-# prepare testing data
-(x_train, y_train), (x_test, y_test) = mnist.load_data()
-x_train = x_train/255
-x_test = x_test/255
-
-# Convert from (#, 28, 28) to (#, 28, 28, 1)
-x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
-x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
-
-
-img_height   = x_train.shape[1]
-img_width    = x_train.shape[2]
-num_channels = x_train.shape[3]
-
-latent_dim = 2 # because this way it's plottable
-
 def compute_latent(x):
     mu, sigma = x
     batch = K.shape(mu)[0]
     dim = K.int_shape(mu)[1]
     eps = K.random_normal(shape=(batch,dim))
     return mu + K.exp(sigma/2)*eps
+
+
+# prepare testing data
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+x_train = x_train/255
+x_test = x_test/255
+# as the VAE doesnt need a test set
+x_train = np.concatenate((x_train, x_test))
+y = np.concatenate((y_train, y_test))
+
+# Convert from (#, 28, 28) to (#, 28, 28, 1)
+x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
+
+img_height = x_train.shape[1]
+img_width = x_train.shape[2]
+num_channels = x_train.shape[3]
+latent_dim = 6 # it makes sense to plot when latent_dim is 2
 
 
 # layers for both the encoder and the decoder based on https://becominghuman.ai/using-variational-autoencoder-vae-to-generate-new-images-14328877e88d
@@ -99,7 +124,7 @@ plt.grid()
 plt.show()
 
 # generating data
-x_samp = np.copy(x_test)
+x_samp = np.copy(x_train)
 x_aux = np.copy(x_samp)
 # alternatively you can include this step. missing data can be either nan or 0
 # x_samp[NanIndex] = 0
@@ -112,14 +137,10 @@ x_sampled = x_samp.numpy()
 samp = decoder(x_samp)
 samp = samp.numpy()
 
-# latent space plot
-plt.figure(figsize=(14,12))
-plt.scatter(x_samp[:,0], x_samp[:,1], s=2, c=y_train, cmap='hsv')
-plt.colorbar()
-plt.grid()
-plt.show()
 
-
+plot_latent(x_samp, y, latent_dim)
+plot_outputs(x_train, samp, 3)
+    
 # time to commpare a few images
 first_image = np.array(samp[10], dtype='float')
 pixels = first_image.reshape((28, 28))
