@@ -5,19 +5,11 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from matplotlib import pyplot as plt
 from keras.datasets import mnist
-from keras import backend as K
-
-def plot_latent(x, y, latent_dim):
-    if latent_dim != 2:
-        return
-    else:
-        # latent space plot
-        plt.figure(figsize=(14,12))
-        plt.scatter(x[:,0], x[:,1], s=2, c=y, cmap='hsv')
-        plt.colorbar()
-        plt.grid()
-        plt.show()
+from keras.models import Sequential
+import keras.backend as K
+from keras.losses import binary_crossentropy
     
+
 def plot_outputs(orig, samples, pictures):   
     fig, axs = plt.subplots(pictures, 2)
     for i in range(pictures):
@@ -37,43 +29,55 @@ def plot_outputs(orig, samples, pictures):
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 x_train = x_train/255
 x_test = x_test/255
-    
-# as the VAE doesnt need a test set
-x_train = np.concatenate((x_train, x_test))
-y = np.concatenate((y_train, y_test))
 
 
 # introducing noise
 for i in range(x_train.shape[0]):
-    x_train[i] += np.random.uniform(0, 1, ((28, 28)))
+    x_train[i] = np.clip(x_train[i] + np.random.normal(0.5, 0.2, ((28, 28))), 0, 1)
+for i in range(x_test.shape[0]):
+    x_test[i] = np.clip(x_test[i] + np.random.normal(0.5, 0.2, ((28, 28))), 0, 1)
 
 
 # Convert from (#, 28, 28) to (#, 28, 28, 1)
 x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
+x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], x_test.shape[2], 1)
 
 img_height = x_train.shape[1]
 img_width = x_train.shape[2]
 num_channels = x_train.shape[3]
-latent_dim = 6 # it makes sense to plot when latent_dim is 2
 
+# layers for both the encoder and the decoder based on 
+# https://becominghuman.ai/using-variational-autoencoder-vae-to-generate-new-images-14328877e88d
+# https://blog.keras.io/building-autoencoders-in-keras.html
+# https://keras.io/examples/vision/autoencoder/
 
-
-# layers for both the encoder and the decoder based on https://becominghuman.ai/using-variational-autoencoder-vae-to-generate-new-images-14328877e88d
+AE = Sequential()
 encoder_inputs = keras.Input(shape = (img_height, img_width, num_channels))
-x = layers.Conv2D(filters = 8, kernel_size = 3, strides = 2, padding = 'same', activation = 'relu')(encoder_inputs)
-x = layers.Conv2D(filters = 16, kernel_size = 3, strides = 2,  padding = 'same', activation = 'relu')(encoder_inputs)
-encoder = layers.Flatten()(x)
-mu = layers.Dense(latent_dim)(encoder)
-conv_shape = K.int_shape(x) # the shape is here
-x = layers.Dense(conv_shape[1]*conv_shape[2]*conv_shape[3], activation = 'relu')(mu)
-x = layers.Reshape((conv_shape[1], conv_shape[2], conv_shape[3]))(x)
-x_ = layers.Conv2DTranspose(filters = 16, kernel_size = 3, strides = 2, padding = 'same', activation = 'relu')(x)
-x_ = layers.Conv2DTranspose(filters = 8, kernel_size = 3, strides = 2, padding = 'same', activation = 'relu')(x)
-x_ =  layers.Conv2DTranspose(filters = num_channels, kernel_size = 3, padding = 'same', activation = 'sigmoid')(x_)
-model = keras.Model(encoder_inputs, x_, name = "autoencoder")
+# encoder
+AE.add(encoder_inputs)
+AE.add(layers.Conv2D(32, (3, 3), padding = 'same', activation = 'relu'))
+AE.add(layers.MaxPooling2D((2, 2), padding = 'same'))
+AE.add(layers.Conv2D(32, (3, 3),  padding = 'same', activation = 'relu'))
+AE.add(layers.MaxPooling2D((2, 2), padding = 'same'))
 
-# beta value is input here
-model.compile(loss = 'binary_crossentropy', optimizer = 'adam')
-model.summary()
-model.fit(x_train, epochs = 20, batch_size = 128, verbose = 1)
+# decoder
+AE.add(layers.Conv2DTranspose(32, (3, 3), strides = 2, activation = 'relu', padding = 'same'))
+AE.add(layers.Conv2DTranspose(32, (3, 3), strides = 2, activation = 'relu', padding = 'same'))
+AE.add(layers.Conv2D(num_channels, (3, 3), activation = 'sigmoid', padding = 'same'))
 
+
+def loss_func(data, pred):
+    return K.mean(binary_crossentropy(K.flatten(data), K.flatten(pred)) * img_width * img_height)
+
+AE.compile(optimizer = 'adam', loss = loss_func)
+AE.summary()
+history = AE.fit(x_train, x_train, epochs = 10, batch_size = 128, verbose = 1)
+
+plt.figure(figsize = (18.64, 9.48))
+plt.plot(history.history["loss"], label = "Training Loss")
+plt.legend()
+plt.grid()
+plt.show()
+
+preds = AE.predict(x_test)
+plot_outputs(x_test, preds, 3)
