@@ -76,9 +76,16 @@ def compute_latent(x):
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 x_train = x_train/255
 x_test = x_test/255
+    
 # as the VAE doesnt need a test set
 x_train = np.concatenate((x_train, x_test))
 y = np.concatenate((y_train, y_test))
+
+
+# introducing noise
+for i in range(x_train.shape[0]):
+    x_train[i] += np.random.uniform(0, 1, ((28, 28)))
+
 
 # Convert from (#, 28, 28) to (#, 28, 28, 1)
 x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
