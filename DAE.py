@@ -23,27 +23,22 @@ def plot_outputs(orig, samples, pictures):
         orig_pixels = orig_image.reshape((28, 28))
         axs[i,1].imshow(orig_pixels, cmap='gray')
 
-
-
 # prepare testing data
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 x_train = x_train/255
 x_test = x_test/255
 
-
 # introducing noise
-noise = layers.GaussianNoise(0.5)
-noisy = noise(x_train.astype(np.float32), training=True)   
-x_train = noisy.numpy()
+def noiser(x, rate):
+    noise = layers.GaussianNoise(rate)
+    return noise(x.astype(np.float32), training=True).numpy()   
 
-noise = layers.GaussianNoise(0.5)
-noisy = noise(x_test.astype(np.float32), training=True)   
-x_test = noisy.numpy()
+x_train = noiser(x_train, 0.5)
+x_test = noiser(x_test, 0.5)
 
 # clipping is a must to keep the crossentropy working as it should!
 x_train = np.clip(x_train, 0, 1)
 x_test = np.clip(x_test, 0, 1)
-
 
 # Convert from (#, 28, 28) to (#, 28, 28, 1)
 x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], x_train.shape[2], 1)
