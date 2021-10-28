@@ -16,6 +16,9 @@ def calculate_metrics(truth, pred):
 
 def plot_outputs(orig, noisy, denoised, pictures):   
     fig, axs = plt.subplots(pictures, 3)
+    axs[0,0].set_title("Normal Data")
+    axs[0,1].set_title("Noisy Data")
+    axs[0,2].set_title("Denoised Data")
     for i in range(pictures):
         rng = int(noisy.shape[0]*random()) # random number
     
@@ -30,6 +33,7 @@ def plot_outputs(orig, noisy, denoised, pictures):
         denoi_image = np.array(denoised[rng], dtype='float')
         denoi_pixels = denoi_image.reshape((28, 28))
         axs[i,2].imshow(denoi_pixels, cmap='gray')
+    plt.tight_layout()
         
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
