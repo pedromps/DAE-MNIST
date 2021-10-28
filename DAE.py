@@ -32,10 +32,17 @@ x_test = x_test/255
 
 
 # introducing noise
-for i in range(x_train.shape[0]):
-    x_train[i] = np.clip(x_train[i] + np.random.normal(0.5, 0.2, ((28, 28))), 0, 1)
-for i in range(x_test.shape[0]):
-    x_test[i] = np.clip(x_test[i] + np.random.normal(0.5, 0.2, ((28, 28))), 0, 1)
+noise = layers.GaussianNoise(0.5)
+noisy = noise(x_train.astype(np.float32), training=True)   
+x_train = noisy.numpy()
+
+noise = layers.GaussianNoise(0.5)
+noisy = noise(x_test.astype(np.float32), training=True)   
+x_test = noisy.numpy()
+
+# clipping is a must to keep the crossentropy working as it should!
+x_train = np.clip(x_train, 0, 1)
+x_test = np.clip(x_test, 0, 1)
 
 
 # Convert from (#, 28, 28) to (#, 28, 28, 1)
@@ -55,14 +62,14 @@ AE = Sequential()
 encoder_inputs = keras.Input(shape = (img_height, img_width, num_channels))
 # encoder
 AE.add(encoder_inputs)
-AE.add(layers.Conv2D(32, (3, 3), padding = 'same', activation = 'relu'))
+AE.add(layers.Conv2D(16, (3, 3), padding = 'same', activation = 'relu'))
 AE.add(layers.MaxPooling2D((2, 2), padding = 'same'))
-AE.add(layers.Conv2D(32, (3, 3),  padding = 'same', activation = 'relu'))
+AE.add(layers.Conv2D(16, (3, 3),  padding = 'same', activation = 'relu'))
 AE.add(layers.MaxPooling2D((2, 2), padding = 'same'))
 
 # decoder
-AE.add(layers.Conv2DTranspose(32, (3, 3), strides = 2, activation = 'relu', padding = 'same'))
-AE.add(layers.Conv2DTranspose(32, (3, 3), strides = 2, activation = 'relu', padding = 'same'))
+AE.add(layers.Conv2DTranspose(16, (3, 3), strides = 2, activation = 'relu', padding = 'same'))
+AE.add(layers.Conv2DTranspose(16, (3, 3), strides = 2, activation = 'relu', padding = 'same'))
 AE.add(layers.Conv2D(num_channels, (3, 3), activation = 'sigmoid', padding = 'same'))
 
 
@@ -71,13 +78,19 @@ def loss_func(data, pred):
 
 AE.compile(optimizer = 'adam', loss = loss_func)
 AE.summary()
-history = AE.fit(x_train, x_train, epochs = 10, batch_size = 128, verbose = 1)
+history = AE.fit(x_train, x_train, epochs = 20, batch_size = 128, verbose = 1, validation_split = 0.1)
 
 plt.figure(figsize = (18.64, 9.48))
 plt.plot(history.history["loss"], label = "Training Loss")
+plt.plot(history.history["val_loss"], label = "Validation Loss")
 plt.legend()
 plt.grid()
 plt.show()
 
 preds = AE.predict(x_test)
 plot_outputs(x_test, preds, 3)
+
+
+# saving the predictions to test in the classification model
+with open ('denoised.npy', 'wb') as f:
+    np.save(f, preds)
